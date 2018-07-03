@@ -1,6 +1,6 @@
 # gwr_Parisi
 
-This folder contains 3 types of extensions of the Grow-When-Required (GWR) self-organizing neural network by Marsland et al. (2002)
+This repository contains 3 types of extensions of the Grow-When-Required (GWR) self-organizing neural network by Marsland et al. (2002)
 
 Use **demo** files for off-the-shelf functionalities for self-organizing networks such as: create, train, test, save, import, and plot.
 
