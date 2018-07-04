@@ -2,7 +2,7 @@
 """
 Associative GWR based on (Marsland et al. 2002)'s Grow-When-Required
 
-@last-modified: 2 July 2018
+@last-modified: 3 July 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -14,11 +14,9 @@ import numpy as np
 import math
 
 class AssociativeGWR:
-        
-    def __init__(self):
-        self.numNodes = 2
-     
+          
     def initNetwork(self, dataSet, labelSet, initMethod):
+        self.numNodes = 2
         self.dimension = dataSet.shape[1]
         self.weights = np.zeros((self.numNodes, self.dimension))
         self.edges = np.ones((self.numNodes,self.numNodes))
@@ -95,9 +93,11 @@ class AssociativeGWR:
                 self.weights = np.delete(self.weights, indCount, axis=0)
                 self.alabels = np.delete(self.alabels, indCount, axis=0)
                 self.edges = np.delete(self.edges, indCount, axis=0)
+                self.edges = np.delete(self.edges, indCount, axis=1)
                 self.ages = np.delete(self.ages, indCount, axis=0)
+                self.ages = np.delete(self.ages, indCount, axis=1)
                 self.habn = np.delete(self.habn, indCount)
-                self.numNodes -= 1
+                self.numNodes = self.weights.shape[0]
                 print "(-- " + str(indCount) + ")"
             else:
                 indCount += 1
@@ -176,7 +176,7 @@ class AssociativeGWR:
                     print ("(++ " + str(self.numNodes) + ')'),
                 else:
                     # Adapt weights
-                    self.updateNeuralWeight(input, firstIndex, self.epsilon_b) 
+                    self.updateNeuralWeight(input, firstIndex, self.epsilon_b)
 
                     # Adapt label histogram
                     self.updateLabelHistogram(firstIndex, label)
@@ -208,7 +208,7 @@ class AssociativeGWR:
             print "AQE: " + str(errorCounter[epochs-1])
             
         # Remove isolated neurons
-        # self.removeIsolatedNeurons()
+        self.removeIsolatedNeurons()
   
         print ("Network size: " + str(self.numNodes))
 

@@ -2,7 +2,7 @@
 """
 Demo with Associative GWR
 
-@last-modified: 2 July 2018
+@last-modified: 3 July 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -48,7 +48,6 @@ if __name__ == "__main__":
                 oDataSet[j,i] = ( dataSet[j,i] - minColumn ) / ( maxColumn - minColumn )
 
     if (importFlag):
-        """try load self.name.txt"""
         file = open("myAGWR"+'.network','r')
         dataPickle = file.read()
         file.close()

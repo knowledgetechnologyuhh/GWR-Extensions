@@ -2,7 +2,7 @@
 """
 Gamma-GWR (Recurrent Grow When Required)
 
-@last-modified: 2 July 2018
+@last-modified: 3 July 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -14,10 +14,8 @@ import math
 
 class GammaGWR:
 
-    def __init__(self):
-        self.numNodes = 2
-
     def initNetwork(self, dimension, numWeights, numClasses):
+        self.numNodes = 2
         self.dimension = dimension
         self.numWeights = numWeights
         self.numOfClasses = numClasses
@@ -84,7 +82,9 @@ class GammaGWR:
                 self.recurrentWeights = np.delete(self.recurrentWeights, indCount, axis=0)
                 self.alabels = np.delete(self.alabels, indCount, axis=0)
                 self.edges = np.delete(self.edges, indCount, axis=0)
+                self.edges = np.delete(self.edges, indCount, axis=1)
                 self.ages = np.delete(self.ages, indCount, axis=0)
+                self.ages = np.delete(self.ages, indCount, axis=1)
                 self.habn = np.delete(self.habn, indCount)
                 self.numNodes -= 1
                 print "(-- " + str(indCount) + ")"
@@ -227,7 +227,7 @@ class GammaGWR:
             Ti = 0
                 
         # Remove isolated neurons
-        # self.removeIsolatedNeurons()
+        self.removeIsolatedNeurons()
 
         print ("( Network size: " + str(self.numNodes) + " )")
     
