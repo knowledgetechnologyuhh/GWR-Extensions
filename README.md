@@ -1,5 +1,5 @@
 # GWR-Extensions
-# or GINGER (Growing and Incremental Networks based on GWR-Extensions for Recognition tasks)
+or GINGER (Growing and Incremental Networks based on GWR-Extensions for Recognition tasks)
 
 This repository contains 3 types of extensions of the Grow-When-Required (GWR) self-organizing neural network by Marsland et al. (2002)
 
