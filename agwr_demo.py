@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Demo with Associative GWR
+Demo with Associative GWR (Python 3)
 
-@last-modified: 3 July 2018
+@last-modified: 13 August 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -13,7 +13,7 @@ import csv
 from agwr import AssociativeGWR
 import numpy as np
 import matplotlib.pyplot as plt
-import cPickle
+import pickle
 
 # Main ########################################################################
 
@@ -28,8 +28,9 @@ if __name__ == "__main__":
     plotFlag = 1         # Plot 2D map
     
     if (dataFlag):
+        
         # Load data set
-        reader = csv.reader(open("iris.csv","rU"),delimiter=',')
+        reader = csv.reader(open("iris.csv","r"),delimiter=',')
         x = list(reader)
         dataSet = np.array(x).astype('float')
         size = dataSet.shape
@@ -48,13 +49,15 @@ if __name__ == "__main__":
                 oDataSet[j,i] = ( dataSet[j,i] - minColumn ) / ( maxColumn - minColumn )
 
     if (importFlag):
-        file = open("myAGWR"+'.network','r')
+        
+        file = open('myAGWR.network','br')
         dataPickle = file.read()
         file.close()
         myAGWR = AssociativeGWR()
-        myAGWR.__dict__ = cPickle.loads(dataPickle)
+        myAGWR.__dict__ = pickle.loads(dataPickle)
 
     if (trainFlag):
+        
         initNeurons = 1                 # Weight initialization (0: random, 1: sequential)
         numberOfEpochs = 25             # Number of training epochs
         insertionThreshold = 0.85       # Activation threshold for node insertion
@@ -66,14 +69,15 @@ if __name__ == "__main__":
         myAGWR.trainAGWR(oDataSet, labelSet, numberOfEpochs, insertionThreshold, learningRateBMU, learningRateNeighbors)
 
     if (saveFlag):
-        file = open("myAGWR"+'.network','w')
-        file.write(cPickle.dumps(myAGWR.__dict__))
+        
+        file = open('myAGWR.network','wb')
+        file.write(pickle.dumps(myAGWR.__dict__))
         file.close()
 
     if (testFlag):
+        
         bmus, blabels, activations = myAGWR.predictAGWR(oDataSet, myAGWR.weights, myAGWR.alabels)
-    
-        print "Test accuracy: " + str(myAGWR.computeAccuracy(labelSet,blabels))
+        print ("Test accuracy:", str(myAGWR.computeAccuracy(labelSet,blabels)))
 
     if (plotFlag):
         # Plot network

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Gamma-GWR example with IRIS dataset
+Gamma-GWR example with IRIS dataset (Python 3)
 
-@last-modified: 3 July 2018
+@last-modified: 13 August 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -13,7 +13,7 @@ import csv
 from gammagwr import GammaGWR
 import numpy as np
 import matplotlib.pyplot as plt
-import cPickle
+import pickle
 
 # Main ########################################################################
 
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         
     if (dataFlag):
        # Load data set
-        reader = csv.reader(open("iris.csv","rU"),delimiter=',')
+        reader = csv.reader(open("iris.csv","r"),delimiter=',')
         x = list(reader)
         dataSet = np.array(x).astype('float')
         size = dataSet.shape
@@ -48,27 +48,30 @@ if __name__ == "__main__":
                 oDataSet[j,i] = ( dataSet[j,i] - minColumn ) / ( maxColumn - minColumn )
 
     if (importFlag):
-        file = open("myGammaGWR"+'.network','r')
+        
+        file = open('myGammaGWR.network','br')
         dataPickle = file.read()
         file.close()
         myGammaGWR = GammaGWR()
-        myGammaGWR.__dict__ = cPickle.loads(dataPickle)
+        myGammaGWR.__dict__ = pickle.loads(dataPickle)
 
     if (trainFlag):
+        
         myGammaGWR = GammaGWR()
         myGammaGWR.initNetwork(dimension, numWeights=2, numClasses=3)
         myGammaGWR.train(oDataSet, labelSet, maxEpochs=25, insertionT=0.85, beta=0.5, epsilon_b=0.2, epsilon_n=0.001)
 
     if (saveFlag):
-        file = open("myGammaGWR"+'.network','w')
-        file.write(cPickle.dumps(myGammaGWR.__dict__))
+        
+        file = open('myGammaGWR.network','wb')
+        file.write(pickle.dumps(myGammaGWR.__dict__))
         file.close()
 
     if (testFlag):
+        
         bmuWeights, bmuActivation, bmuLabel = myGammaGWR.predict(oDataSet)
         predictedLabels, accuracy = myGammaGWR.predictLabels(bmuLabel, labelSet)
-        
-        print "Classification accuracy: " + str(accuracy)
+        print ("Classification accuracy: ", accuracy)
  
     if (plotFlag):       
         # Plot network

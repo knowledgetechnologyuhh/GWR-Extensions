@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Gamma-GWR (Recurrent Grow When Required)
+Gamma-GWR (Recurrent Grow When Required) (Python 3)
 
-@last-modified: 3 July 2018
+@last-modified: 13 August 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -92,7 +92,7 @@ class GammaGWR:
                 self.temporal = np.delete(self.temporal, indCount, axis=0)
                 self.temporal = np.delete(self.temporal, indCount, axis=1)
                 self.numNodes -= 1
-                print "(-- " + str(indCount) + ")"
+                print ("(--", indCount, ")")
             else:
                 indCount += 1
 
@@ -134,7 +134,7 @@ class GammaGWR:
         previousIndex = -1
         cu_qrror = np.zeros(self.samples)
         cu_fcounter = np.zeros(self.samples)
-        print "Starting with " + str(self.numNodes) + " neurons..."
+        print ("****", "EE:", self.maxEpochs, "WW:", self.numWeights, "LR:", self.epsilon_b, self.epsilon_n, "NN:", self.numNodes)
 
         for epoch in range(0, self.maxEpochs):
             for iteration in range(0, self.samples):
@@ -247,8 +247,8 @@ class GammaGWR:
             self.fcounter[epoch,0] = np.mean(cu_fcounter)
             self.fcounter[epoch,1] = np.std(cu_fcounter)
         
-            print ("(E: " + str(epoch+1) + ", NN: " + str(self.numNodes) + ", TQE: " + str(self.qrror[epoch,0]) + " )")
-            #print ("(Tsteps: " + str(Ti) + " )"),
+            print ("(E: " + str(epoch+1), ", NN: ", str(self.numNodes), ", TQE: ", str(self.qrror[epoch,0]), ")")
+            #print ("(Tsteps: ", Ti, ")"),
             Ti = 0
                 
         # Remove isolated neurons
@@ -300,7 +300,7 @@ class GammaGWR:
         return predictedLabels, avgAcc
     
     def predict( self, dataSet ):
-        print "Predicting ...",
+        print ("Predicting ..."),
         samples = dataSet.shape[0]
         bmuWeights = np.zeros((samples-(self.numWeights),self.dimension))
         bmuActivation = np.zeros(samples-(self.numWeights))

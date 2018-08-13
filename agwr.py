@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Associative GWR based on (Marsland et al. 2002)'s Grow-When-Required
+Associative GWR based on (Marsland et al. 2002)'s Grow-When-Required (Python 3)
 
-@last-modified: 3 July 2018
+@last-modified: 13 August 2018
 
 @author: German I. Parisi (german.parisi@gmail.com)
 
@@ -98,7 +98,7 @@ class AssociativeGWR:
                 self.ages = np.delete(self.ages, indCount, axis=1)
                 self.habn = np.delete(self.habn, indCount)
                 self.numNodes = self.weights.shape[0]
-                print "(-- " + str(indCount) + ")"
+                print ("(-- ", str(indCount), ")")
             else:
                 indCount += 1
                 
@@ -125,7 +125,6 @@ class AssociativeGWR:
         errorCounter = np.zeros(self.maxEpochs)
         while (epochs < self.maxEpochs):
             epochs += 1
-            print ("(Epoch: " + str(epochs) + " )"),
             for iteration in range(0, self.samples):
                 # Generate input sample
                 input = dataSet[iteration]
@@ -173,7 +172,7 @@ class AssociativeGWR:
                     self.ages[newIndex, secondIndex] = 0
                     self.ages[secondIndex, newIndex] = 0
                     
-                    print ("(++ " + str(self.numNodes) + ')'),
+                    print ("(++", str(self.numNodes), ')'),
                 else:
                     # Adapt weights
                     self.updateNeuralWeight(input, firstIndex, self.epsilon_b)
@@ -205,12 +204,12 @@ class AssociativeGWR:
 
             # Compute some metrics
             errorCounter[epochs-1] /= self.samples
-            print "AQE: " + str(errorCounter[epochs-1])
+            print ("(Epoch", str(epochs), "AQE:", str(errorCounter[epochs-1]), ")")
             
         # Remove isolated neurons
         self.removeIsolatedNeurons()
   
-        print ("Network size: " + str(self.numNodes))
+        print ("Network size: ", str(self.numNodes))
 
     # Test GWR ################################################################ 
 
