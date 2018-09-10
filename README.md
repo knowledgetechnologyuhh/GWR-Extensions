@@ -6,8 +6,10 @@ Use **demo** files for off-the-shelf functionalities for self-organizing network
 
 ----------------------------------------------------------
 **Associative GWR** (AGWR; Parisi et al., 2015) - Standard GWR extended with associative labelling for learning label histograms for each neuron.
+
 ----------------------------------------------------------
 **GammaGWR** (Parisi et al., 2017) - GWR neurons are equipped with a number of context descriptors for temporal processing.
+
 ----------------------------------------------------------
 
 For additional details, please check the reference papers:
