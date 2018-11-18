@@ -1,275 +1,308 @@
 # -*- coding: utf-8 -*-
 """
-Gamma-GWR (Recurrent Grow When Required) (Python 3)
-
-@last-modified: 8 September 2018
-
+gwr-tb :: Gamma-GWR based on Marsland et al. (2002)'s Grow-When-Required network
+@last-modified: 17 November 2018
 @author: German I. Parisi (german.parisi@gmail.com)
 
-Please cite this paper: Parisi, G.I., Tani, J., Weber, C., Wermter, S. (2017) Lifelong Learning of Human Actions with Deep Neural Network Self-Organization. Neural Networks 96:137-149.
 """
 
 import numpy as np
 import math
 
 class GammaGWR:
+    
+    def __init__(self, ds, random, **kwargs):
 
-    def initNetwork(self, dimension, numWeights, numClasses):
-        self.numNodes = 2
-        self.dimension = dimension
-        self.numWeights = numWeights
-        self.numOfClasses = numClasses
-        self.recurrentWeights = np.zeros((self.numNodes,self.numWeights,self.dimension))
-        self.alabels = np.zeros((self.numNodes,self.numOfClasses))
-        self.globalContext = np.zeros((self.numWeights,self.dimension))
-        self.edges = np.zeros((self.numNodes,self.numNodes))
-        self.ages = np.zeros((self.numNodes,self.numNodes))
-        self.habn = np.ones(self.numNodes)
-        self.varAlpha = self.gammaWeights(self.numWeights)
-        
-    def gammaWeights ( self, nw ):
-        iWe = np.zeros(nw)
-        for h in range(0,len(iWe)):
-            iWe[h] = np.exp(-h)
-        iWe[:] = iWe[:] / sum(iWe)
-        return iWe
+        if ds is not None:
+            # Number of neurons
+            self.num_nodes = 2
+            # Dimensionality of weights
+            self.dimension = ds.vectors.shape[1]
+            # Start with two neurons with context
+            self.depth = kwargs.get('num_context', None) + 1
+            self.weights = np.zeros((self.num_nodes, self.depth, self.dimension))
+            # Global context
+            self.g_context = np.zeros((self.depth, self.dimension))                        
+            # Habituation counters
+            self.habn = np.ones(self.num_nodes)
+            # Connectivity matrix
+            self.edges = np.ones((self.num_nodes, self.num_nodes))
+            # Age matrix
+            self.ages = np.zeros((self.num_nodes, self.num_nodes))
+            # Label histogram
+            self.alabels = np.zeros((self.num_nodes, ds.num_classes))
+            # Initialize weights
+            self.random = random
             
-    def habituateNeuron(self, index, tau):
+            if self.random:            
+                init_ind = np.random.randint(0, ds.vectors.shape[0], 2)
+            else:
+                init_ind = list(range(0, self.num_nodes))
+
+            for i in range(0, len(init_ind)):
+                self.weights[i, 0] = ds.vectors[i]
+                self.alabels[i, int(ds.labels[i])] = 1
+                
+            # Context coefficients
+            self.alphas = self.compute_alphas(self.depth)
+            
+        # Keep unlocked to train. Lock to prevent training.
+        self.locked = False
+        
+    def compute_alphas(self, num_coeff):
+        alpha_w = np.zeros(num_coeff)
+        for h in range(0, len(alpha_w)):
+            alpha_w[h] = np.exp(-h)
+        alpha_w[:] = alpha_w[:] / sum(alpha_w)
+        return alpha_w
+
+    def find_bmus(self, input_vector, **kwargs):
+        second_best = kwargs.get('second_best', None)
+        distances = np.zeros(self.num_nodes)
+        for i in range(0, self.num_nodes):
+            distances[i] = self.compute_distance(self.weights[i], input_vector)
+        
+        if second_best:
+            # Compute best and second-best matching units
+            return self.find_bs(distances)
+        else:
+            b_index = distances.argmin()
+            b_distance = distances[b_index]
+            return b_index, b_distance
+
+    def compute_distance(self, x, y):
+        return np.linalg.norm(np.dot(self.alphas.T, (x-y)))
+
+    def add_node(self, b_index, input_vector):
+        new_weight = np.zeros((self.depth, self.dimension))        
+        new_weight = np.array([np.dot(self.weights[b_index] + self.g_context, self.new_node)])        
+        self.weights = np.concatenate((self.weights, new_weight), axis=0)
+        self.num_nodes += 1
+
+    def habituate_node(self, index, tau, **kwargs):
+        new_node = kwargs.get('new_node', None)
+        if not new_node:
             self.habn[index] += (tau * 1.05 * (1. - self.habn[index]) - tau)
-
-    def updateNeuron(self, index, epsilon):
-        deltaWeights = np.zeros((self.numWeights,self.dimension))
-        for i in range(0, self.numWeights):
-            deltaWeights[i] = np.array([np.dot((self.globalContext[i]-self.recurrentWeights[index,i]), epsilon)]) * self.habn[index]
-        self.recurrentWeights[index] += deltaWeights
+        else:
+            self.habn.resize(self.num_nodes) 
+            self.habn[index] = 1
             
-    def updateLabelHistogram(self, bmu, label):         
-        if (label!=-1):
-            for a in range(0,self.numOfClasses):
-                if (a==label):
-                    self.alabels[bmu, a] += self.aIncreaseFactor
-                else:
-                    self.alabels[bmu, a] -= self.aDecreaseFactor
-                    if (self.alabels[bmu, a] < 0):
-                        self.alabels[bmu, a] = 0
+    def update_neighbors(self, index, epsilon):
+        b_neighbors = np.nonzero(self.edges[index])
+        for z in range(0, len(b_neighbors[0])):
+            neIndex = b_neighbors[0][z]
+            self.update_weight(neIndex, epsilon)                        
+            self.habituate_node(neIndex, self.tau_n, new_node=False)
+ 
+    def update_weight(self, index, epsilon):
+        delta = np.zeros((self.depth, self.dimension))
+        for i in range(0, self.depth):
+            delta[i] = np.array([np.dot((self.g_context[i]-self.weights[index,i]), epsilon)]) * self.habn[index]
+        self.weights[index] += delta
         
-    def updateEdges(self, fi, si):
-        neighboursFirst = np.nonzero(self.edges[fi])
-        if (len(neighboursFirst[0]) >= self.maxNeighbours):
-            remIndex = -1
-            maxAgeNeighbour = 0
-            for u in range(0,len(neighboursFirst[0])):
-                if (self.ages[fi, neighboursFirst[0][u]]>maxAgeNeighbour):
-                    maxAgeNeighbour = self.ages[fi, neighboursFirst[0][u]]
-                    remIndex = neighboursFirst[0][u]
-            self.edges[fi, remIndex] = 0
-            self.edges[remIndex, fi] = 0
-        self.edges[fi, si] = 1
-
-    def removeOldEdges(self):
-        for i in range(0, self.numNodes):
+    def update_labels(self, bmu, label, **kwargs):
+        new_node = kwargs.get('new_node', None)        
+        if not new_node:        
+            for a in range(0, self.num_classes):
+                if (a==label):
+                    self.alabels[bmu, a] += self.a_inc
+                else:
+                    if label != -1:
+                        self.alabels[bmu, a] -= self.a_dec
+                        if (self.alabels[bmu, a] < 0):
+                            self.alabels[bmu, a] = 0                        
+        else:
+            new_alabel = np.zeros((1, self.num_classes))
+            if label != -1:
+                new_alabel[0, int(label)] = self.a_inc
+            self.alabels = np.concatenate((self.alabels, new_alabel), axis=0)
+                            
+    def update_edges(self, fi, si, **kwargs):
+        new_index = kwargs.get('new_index', None)
+        self.ages += 1
+        if new_index is None:
+            self.edges[fi, si] = 1  
+            self.edges[si, fi] = 1
+            self.ages[fi, si] = 0
+            self.ages[si, fi] = 0
+        else:
+            self.edges.resize((self.num_nodes, self.num_nodes))
+            self.ages.resize((self.num_nodes, self.num_nodes))
+            self.edges[fi, si] = 0
+            self.edges[si, fi] = 0
+            self.ages[fi, si] = 0
+            self.ages[si, fi] = 0
+            self.edges[fi, new_index] = 1
+            self.edges[new_index, si] = 1
+      
+    def remove_old_edges(self):
+        for i in range(0, self.num_nodes):
             neighbours = np.nonzero(self.edges[i])
-            for j in range(0, len(neighbours[0])):
-                if (self.ages[i, j] >=  self.maxAge):
+            for j in neighbours[0]:
+                if self.ages[i, j] >  self.max_age:
                     self.edges[i, j] = 0
                     self.edges[j, i] = 0
-
-    def removeIsolatedNeurons(self):        
-        indCount = 0
-        while (indCount < self.numNodes):
-            neighbours = np.nonzero(self.edges[indCount])
-            if (len(neighbours[0])<1):
-                self.recurrentWeights = np.delete(self.recurrentWeights, indCount, axis=0)
-                self.alabels = np.delete(self.alabels, indCount, axis=0)
-                self.edges = np.delete(self.edges, indCount, axis=0)
-                self.edges = np.delete(self.edges, indCount, axis=1)
-                self.ages = np.delete(self.ages, indCount, axis=0)
-                self.ages = np.delete(self.ages, indCount, axis=1)
-                self.habn = np.delete(self.habn, indCount)
-                self.numNodes -= 1
-                print ("(--", str(indCount) + ")")
+                    self.ages[i, j] = 0
+                    self.ages[j, i] = 0
+                              
+    def remove_isolated_nodes(self):
+        ind_c = 0
+        rem_c = 0
+        while (ind_c < self.num_nodes):
+            neighbours = np.nonzero(self.edges[ind_c])
+            if len(neighbours[0]) < 1:
+                self.weights = np.delete(self.weights, ind_c, axis=0)
+                self.alabels = np.delete(self.alabels, ind_c, axis=0)
+                self.edges = np.delete(self.edges, ind_c, axis=0)
+                self.edges = np.delete(self.edges, ind_c, axis=1)
+                self.ages = np.delete(self.ages, ind_c, axis=0)
+                self.ages = np.delete(self.ages, ind_c, axis=1)
+                self.habn = np.delete(self.habn, ind_c)
+                self.num_nodes -= 1
+                rem_c += 1
             else:
-                indCount += 1
+                ind_c += 1
+        print ("(-- Removed %s neuron(s))" % rem_c)
 
-    def train( self, dataSet, labelSet, maxEpochs, insertionT, beta, epsilon_b, epsilon_n):
-        self.dataSet = dataSet
-        self.samples = self.dataSet.shape[0]
-        self.labelSet = labelSet
-        self.maxEpochs = maxEpochs
-        self.insertionThreshold = insertionT 
-        self.varBeta = beta
-        self.epsilon_b = epsilon_b
-        self.epsilon_n = epsilon_n
+    def find_bs(self, dis):
+        if dis[0] < dis[1]:
+            b_index = 0
+            s_index = 1
+        else:
+            b_index = 1
+            s_index = 0
+    
+        for i in range(2, self.num_nodes):
+            if dis[i] < dis[s_index]:
+                if dis[i] < dis[b_index]:
+                    s_index = b_index
+                    b_index = i
+                else:
+                    if i != b_index:
+                        s_index = i
+
+        return b_index, dis[b_index], s_index
+                
+    def train_agwr(self, ds, epochs, a_threshold, beta, learning_rates):
         
-        self.habThreshold = 0.1
+        assert not self.locked, "Network is locked. Unlock to train."
+         
+        self.samples, self.dimension = ds.vectors.shape
+        self.max_epochs = epochs
+        self.a_threshold = a_threshold   
+        self.epsilon_b, self.epsilon_n = learning_rates
+        self.beta = beta
+        
+        self.hab_threshold = 0.1
         self.tau_b = 0.3
         self.tau_n = 0.1
-        self.maxNodes = 10000
-        self.maxAge = 200
-        self.maxNeighbours = 6
-        self.aIncreaseFactor = 1.
-        self.aDecreaseFactor = 0.01
-        
-        self.nNN = np.zeros(self.maxEpochs) #nNN[0] = 2
-        self.qrror = np.zeros((self.maxEpochs,2))
-        self.fcounter = np.zeros((self.maxEpochs,2))
-        
-        if (self.recurrentWeights[0:2,0].all() == 0):
-            self.recurrentWeights[0,0] = self.dataSet[0]
-            self.recurrentWeights[1,0] = self.dataSet[1]
-        
-        previousBMU = np.zeros((1,self.numWeights,self.dimension))
-        cu_qrror = np.zeros(self.samples)
-        cu_fcounter = np.zeros(self.samples)
-        print ("****", "EE:", self.maxEpochs, "WC:", self.numWeights, "IT:", self.insertionThreshold, "LR:", self.epsilon_b, self.epsilon_n, "NN:", self.numNodes)
-
+        self.max_nodes = self.samples # OK for batch, bad for incremental
+        self.max_neighbors = 6
+        self.max_age = 600
+        self.new_node = 0.5
+        self.num_classes = ds.num_classes
+        self.a_inc = 1
+        self.a_dec = 0.1
+  
         # Start training
-        for epoch in range(0, self.maxEpochs):
-            
+        errorCounter = np.zeros(self.max_epochs)
+        previous_bmu = np.zeros((self.depth, self.dimension))
+        for epoch in range(0, self.max_epochs):
             for iteration in range(0, self.samples):
-                self.globalContext[0] = self.dataSet[iteration]
-                label = self.labelSet[iteration]
-
-                # Update global context
-                for z in range(1, self.numWeights):
-                    self.globalContext[z] = (self.varBeta * previousBMU[0,z]) + ((1-self.varBeta) * previousBMU[0,z-1])
-               
-                # Find the best and second-best matching neurons
-                distances = np.zeros(self.numNodes)
-                for i in range(0, self.numNodes):
-                    gammaDistance = 0.0
-                    for j in range(0, self.numWeights):
-                        gammaDistance += (self.varAlpha[j] * (np.sqrt(np.sum((self.globalContext[j] - self.recurrentWeights[i,j])**2))))
-                    distances[i] = gammaDistance
-                    
-                firstIndex = np.argmin(distances)
-                firstDistance = distances[firstIndex]
-                distances[firstIndex] = 99999
-                secondIndex = np.argmin(distances)
                 
-                #sort_index = np.argsort(distances)
-                #firstIndex = sort_index[0]
-                #firstDistance = distances[firstIndex]
-                #secondIndex = sort_index[1]
-        
-                #spatialQE = np.sqrt(np.sum((globalContext[0]+recurrentWeights[firstIndex,0])**2))
-                previousBMU[0] = self.recurrentWeights[firstIndex]
-                self.ages += 1
+                # Generate input sample
+                self.g_context[0] = ds.vectors[iteration]
+                label = ds.labels[iteration]
+                
+                # Update global context
+                for z in range(1, self.depth):
+                    self.g_context[z] = (self.beta * previous_bmu[z]) + ((1-self.beta) * previous_bmu[z-1])
+                
+                # Find the best and second-best matching neurons
+                b_index, b_distance, s_index = self.find_bmus(self.g_context, second_best=True)
+                
+                # Quantization error
+                errorCounter[epoch] += b_distance
                 
                 # Compute network activity
-                cu_qrror[iteration] = firstDistance
-                h = self.habn[firstIndex]
-                cu_fcounter[iteration] = h
-                a = math.exp(-firstDistance)
+                a = math.exp(-b_distance)
 
-                if ( (a < self.insertionThreshold) and (h < self.habThreshold) and (self.numNodes < self.maxNodes) ):
-                    # Add new neuron
-                    newRecurrentWeight = np.zeros((1,self.numWeights,self.dimension))
-                    for i in range(0, self.numWeights):
-                        newRecurrentWeight[0,i] = np.array([np.dot(self.recurrentWeights[firstIndex,i] + self.globalContext[i], 0.5)])
-                    self.recurrentWeights = np.concatenate((self.recurrentWeights,newRecurrentWeight),axis=0)
+                # Store BMU at time t for t+1
+                previous_bmu = self.weights[b_index]
+                
+                if (a < self.a_threshold
+                    and self.habn[b_index] < self.hab_threshold
+                    and self.num_nodes < self.max_nodes):
                    
-                    newAlabel = np.zeros((1,self.numOfClasses))
-                    if (label!=-1):
-                        newAlabel[0,int(label)] = self.aIncreaseFactor
-                    self.alabels = np.concatenate((self.alabels,newAlabel),axis=0)
-                    
-                    newIndex = self.numNodes
-                    self.numNodes += 1
-                    self.habn.resize(self.numNodes) 
-                    self.habn[newIndex] = 1
-                    
-                    # Update edges
-                    self.edges.resize((self.numNodes,self.numNodes))
-                    self.edges[firstIndex, secondIndex] = 0
-                    self.edges[secondIndex, firstIndex] = 0
-                    self.edges[firstIndex, newIndex] = 1
-                    self.edges[newIndex, firstIndex] = 1
-                    self.edges[newIndex, secondIndex] = 1
-                    self.edges[secondIndex, newIndex] = 1
-                        
-                    # Update ages
-                    self.ages.resize((self.numNodes,self.numNodes))
-                    self.ages[firstIndex, newIndex] = 0
-                    self.ages[newIndex, firstIndex] = 0
-                    self.ages[newIndex, secondIndex] = 0
-                    self.ages[secondIndex, newIndex] = 0
+                    # Add new neuron
+                    n_index = self.num_nodes
+                    self.add_node(b_index, input)                  
+                   
+                    # Add label histogram
+                    self.update_labels(n_index, label, new_node=True)                   
 
+                    # Update edges and ages
+                    self.update_edges(b_index, s_index, new_index=n_index)
+
+                    # Habituation counter                    
+                    self.habituate_node(n_index, self.tau_b, new_node=True)
+                    
                 else:
-                    # Adapt weights and context descriptors
-                    self.updateNeuron(firstIndex, self.epsilon_b)
-                                    
-                    # Adapt label histogram
-                    self.updateLabelHistogram(firstIndex, label)
-                    
-                    # Habituate BMU            
-                    self.habituateNeuron(firstIndex, self.tau_b)
-                    
-                    # Update ages
-                    self.ages[firstIndex, secondIndex] = 0
-                    self.ages[secondIndex, firstIndex] = 0
-                    
-                    # Update edges // Remove oldest ones
-                    self.updateEdges(firstIndex, secondIndex)
-                    self.updateEdges(secondIndex, firstIndex)
-                    
-                    # Update topological neighbours
-                    neighboursFirst = np.nonzero(self.edges[firstIndex])
-                    for z in range(0, len(neighboursFirst[0])):
-                        neIndex = neighboursFirst[0][z]
-                        self.updateNeuron(neIndex, self.epsilon_n)
-                        self.habituateNeuron(neIndex, self.tau_n)
-                    
-            # Remove old edges
-            self.removeOldEdges()
-                        
-            self.nNN[epoch] = self.numNodes
-            self.qrror[epoch,0] = np.mean(cu_qrror)
-            self.qrror[epoch,1] = np.std(cu_qrror)
-            self.fcounter[epoch,0] = np.mean(cu_fcounter)
-            self.fcounter[epoch,1] = np.std(cu_fcounter)
-            
-            print ("(E: " + str(epoch+1), ", NN: ", str(self.numNodes), ", TQE: ", str(self.qrror[epoch,0]), ")")
-                
-        # Remove isolated neurons
-        self.removeIsolatedNeurons()
-    
-    # Test GWR ################################################################ 
-    
-    def predict( self, dataSet ):
-        print ("Predicting ..."),
-        wSize = dataSet.shape[0]
-        distances = np.zeros(self.numNodes) 
-        bmuWeights = np.zeros((wSize, self.dimension))
-        bmuActivation = np.zeros(wSize)
-        bmuLabel = -np.ones(wSize)
-        inputContext = np.zeros((self.numWeights, self.dimension))
-        
-        for ti in range(0, wSize):
-            inputContext[0] = dataSet[ti]
-            
-            for i in range(0, self.numNodes):
-                gammaDistance = 0.0
-                for j in range(0, self.numWeights):
-                    gammaDistance += (self.varAlpha[j] * (np.sqrt(np.sum((inputContext[j] - self.recurrentWeights[i,j])**2))))
-                distances[i] = gammaDistance
-                
-            firstIndex = np.argmin(distances)
-            bmuWeights[ti] = self.recurrentWeights[firstIndex,0]
-            bmuActivation[ti] = math.exp(-distances[firstIndex])
-            bmuLabel[ti] = np.argmax(self.alabels[firstIndex,:])
-            
-            for i in range(1, self.numWeights):
-                inputContext[i] = inputContext[i-1]
-        
-        return bmuWeights, bmuActivation, bmuLabel
 
-    def computeAccuracy(self, bmuLabel, labelSet):
-        wSize = len(bmuLabel)
-        counterAcc = 0
+                    # Habituate BMU
+                    self.habituate_node(b_index, self.tau_b)
+
+                    # Update BMU's weight vector
+                    self.update_weight(b_index, self.epsilon_b)
+
+                    # Update BMU's edges // Remove BMU's oldest ones
+                    self.update_edges(b_index, s_index) 
+
+                    # Update BMU's neighbors
+                    self.update_neighbors(b_index, self.epsilon_n)
+                    
+                    # Update BMU's label histogram
+                    self.update_labels(b_index, label)
+
+            # Remove old edges
+            self.remove_old_edges()
+            
+            # Average quantization error (AQE)
+            errorCounter[epoch] /= self.samples
+            
+            print ("(Epoch: %s, NN: %s, ATQE: %s)" % (epoch+1, self.num_nodes, errorCounter[epoch]))
+            
+        # Remove isolated neurons
+        self.remove_isolated_nodes()
         
-        for i in range(0, wSize):
-            if (bmuLabel[i]==labelSet[i]):
-                counterAcc +=1
+        print("Network size: %s" % self.num_nodes)
+
+    def test_gammagwr(self, test_ds, **kwargs):
+        test_accuracy = kwargs.get('test_accuracy', None)
+        self.bmus_index = -np.ones(self.samples)
+        self.bmus_label = -np.ones(self.samples)
+        self.bmus_activation = np.zeros(self.samples)
         
-        return (counterAcc * 100) / wSize
+        input_context = np.zeros((self.depth, self.dimension))
+        
+        if test_accuracy:
+            acc_counter = 0
+        
+        for i in range(0, test_ds.vectors.shape[0]):
+            input_context[0] = test_ds.vectors[i]
+            
+            # Find the BMU
+            b_index, b_distance = self.find_bmus(input_context)
+            self.bmus_index[i] = b_index
+            self.bmus_activation[i] = math.exp(-b_distance)
+            self.bmus_label[i] = np.argmax(self.alabels[b_index])
+            
+            for j in range(1, self.depth):
+                input_context[j] = input_context[j-1]
+            
+            if test_accuracy:
+                if self.bmus_label[i] == test_ds.labels[i]:
+                    acc_counter += 1
+
+        if test_accuracy:
+            self.test_accuracy =  acc_counter / test_ds.vectors.shape[0]
