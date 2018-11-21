@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 gwr-tb :: Gamma-GWR based on Marsland et al. (2002)'s Grow-When-Required network
-@last-modified: 17 November 2018
+@last-modified: 20 November 2018
 @author: German I. Parisi (german.parisi@gmail.com)
 
 """
@@ -19,7 +19,8 @@ class GammaGWR:
             # Dimensionality of weights
             self.dimension = ds.vectors.shape[1]
             # Start with two neurons with context
-            self.depth = kwargs.get('num_context', None) + 1
+            self.num_context = kwargs.get('num_context', 0)
+            self.depth = self.num_context + 1
             self.weights = np.zeros((self.num_nodes, self.depth, self.dimension))
             # Global context
             self.g_context = np.zeros((self.depth, self.dimension))                        
@@ -57,7 +58,7 @@ class GammaGWR:
         return alpha_w
 
     def find_bmus(self, input_vector, **kwargs):
-        second_best = kwargs.get('second_best', None)
+        second_best = kwargs.get('second_best', False)
         distances = np.zeros(self.num_nodes)
         for i in range(0, self.num_nodes):
             distances[i] = self.compute_distance(self.weights[i], input_vector)
@@ -73,14 +74,13 @@ class GammaGWR:
     def compute_distance(self, x, y):
         return np.linalg.norm(np.dot(self.alphas.T, (x-y)))
 
-    def add_node(self, b_index, input_vector):
-        new_weight = np.zeros((self.depth, self.dimension))        
+    def add_node(self, b_index):      
         new_weight = np.array([np.dot(self.weights[b_index] + self.g_context, self.new_node)])        
         self.weights = np.concatenate((self.weights, new_weight), axis=0)
         self.num_nodes += 1
 
     def habituate_node(self, index, tau, **kwargs):
-        new_node = kwargs.get('new_node', None)
+        new_node = kwargs.get('new_node', False)
         if not new_node:
             self.habn[index] += (tau * 1.05 * (1. - self.habn[index]) - tau)
         else:
@@ -101,10 +101,10 @@ class GammaGWR:
         self.weights[index] += delta
         
     def update_labels(self, bmu, label, **kwargs):
-        new_node = kwargs.get('new_node', None)        
+        new_node = kwargs.get('new_node', False)        
         if not new_node:        
             for a in range(0, self.num_classes):
-                if (a==label):
+                if a == label:
                     self.alabels[bmu, a] += self.a_inc
                 else:
                     if label != -1:
@@ -118,9 +118,9 @@ class GammaGWR:
             self.alabels = np.concatenate((self.alabels, new_alabel), axis=0)
                             
     def update_edges(self, fi, si, **kwargs):
-        new_index = kwargs.get('new_index', None)
+        new_index = kwargs.get('new_index', False)
         self.ages += 1
-        if new_index is None:
+        if not new_index:
             self.edges[fi, si] = 1  
             self.edges[si, fi] = 1
             self.ages[fi, si] = 0
@@ -186,8 +186,10 @@ class GammaGWR:
     def train_agwr(self, ds, epochs, a_threshold, beta, learning_rates):
         
         assert not self.locked, "Network is locked. Unlock to train."
-         
-        self.samples, self.dimension = ds.vectors.shape
+
+        self.samples = ds.vectors.shape[0]
+        assert ds.vectors.shape[1] == self.dimension, "Wrong dimensionality"
+        
         self.max_epochs = epochs
         self.a_threshold = a_threshold   
         self.epsilon_b, self.epsilon_n = learning_rates
@@ -205,7 +207,7 @@ class GammaGWR:
         self.a_dec = 0.1
   
         # Start training
-        errorCounter = np.zeros(self.max_epochs)
+        error_counter = np.zeros(self.max_epochs)
         previous_bmu = np.zeros((self.depth, self.dimension))
         for epoch in range(0, self.max_epochs):
             for iteration in range(0, self.samples):
@@ -222,7 +224,7 @@ class GammaGWR:
                 b_index, b_distance, s_index = self.find_bmus(self.g_context, second_best=True)
                 
                 # Quantization error
-                errorCounter[epoch] += b_distance
+                error_counter[epoch] += b_distance
                 
                 # Compute network activity
                 a = math.exp(-b_distance)
@@ -236,7 +238,7 @@ class GammaGWR:
                    
                     # Add new neuron
                     n_index = self.num_nodes
-                    self.add_node(b_index, input)                  
+                    self.add_node(b_index)         
                    
                     # Add label histogram
                     self.update_labels(n_index, label, new_node=True)                   
@@ -268,9 +270,9 @@ class GammaGWR:
             self.remove_old_edges()
             
             # Average quantization error (AQE)
-            errorCounter[epoch] /= self.samples
+            error_counter[epoch] /= self.samples
             
-            print ("(Epoch: %s, NN: %s, ATQE: %s)" % (epoch+1, self.num_nodes, errorCounter[epoch]))
+            print ("(Epoch: %s, NN: %s, ATQE: %s)" % (epoch+1, self.num_nodes, error_counter[epoch]))
             
         # Remove isolated neurons
         self.remove_isolated_nodes()
