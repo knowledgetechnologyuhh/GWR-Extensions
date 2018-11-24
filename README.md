@@ -1,5 +1,5 @@
 # gwr-tb :: GWR Toolbox #
-This repository is a mirror of the GWR Toolbox:GWR Toolbox: https://github.com/giparisi/gwr-tb
+This repository is a mirror of the GWR Toolbox: https://github.com/giparisi/gwr-tb
 
 Use **demo** files for off-the-shelf functionalities with the Iris dataset.
 
