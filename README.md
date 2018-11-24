@@ -1,5 +1,6 @@
-# gwr-tb :: GWR Toolbox
-#
+# gwr-tb :: GWR Toolbox #
+This is a mirror of the GWR Toolbox:GWR Toolbox: https://github.com/giparisi/gwr-tb
+
 This repository contains 3 types of extensions of the Grow-When-Required (GWR) self-organizing neural network by Marsland et al. (2002).
 
 Use **demo** files for off-the-shelf functionalities with the Iris dataset.
