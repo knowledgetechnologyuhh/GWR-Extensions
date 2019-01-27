@@ -109,6 +109,11 @@ class AssociativeGWR:
                 new_alabel[0, int(label)] = self.a_inc
             self.alabels = np.concatenate((self.alabels, new_alabel), axis=0)
 
+    def expand_matrix(self, matrix): ###
+        ext_matrix = np.hstack((matrix, np.zeros((matrix.shape[0], 1))))
+        ext_matrix = np.vstack((ext_matrix, np.zeros((1, ext_matrix.shape[1]))))
+        return ext_matrix
+        
     def update_edges(self, fi, si, **kwargs) -> None:
         new_index = kwargs.get('new_index', False)
         self.ages += 1
@@ -118,13 +123,15 @@ class AssociativeGWR:
             self.ages[fi, si] = 0
             self.ages[si, fi] = 0
         else:
-            self.edges.resize((self.num_nodes, self.num_nodes))
-            self.ages.resize((self.num_nodes, self.num_nodes))
+            self.edges = self.expand_matrix(self.edges) ###
+            self.ages = self.expand_matrix(self.ages) ###
             self.edges[fi, si] = 0
             self.edges[si, fi] = 0
             self.ages[fi, si] = 0
             self.ages[si, fi] = 0
             self.edges[fi, new_index] = 1
+            self.edges[new_index, fi] = 1 ###
+            self.edges[si, new_index] = 1 ###
             self.edges[new_index, si] = 1
       
     def remove_old_edges(self) -> None:
