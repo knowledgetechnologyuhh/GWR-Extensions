@@ -82,7 +82,7 @@ class GammaGWR:
         if self.random: init_ind = np.random.randint(0, ds.vectors.shape[0], 2)
         else: init_ind = list(range(0, self.num_nodes))
         for i in range(0, len(init_ind)):
-            self.weights[i] = ds.vectors[init_ind[i]]
+            self.weights[i][0] = ds.vectors[init_ind[i]]
             self.alabels[i][int(ds.labels[i])] = 1
             print(self.weights[i])
             
